@@ -1,0 +1,33 @@
+name: Statement Reconciliation
+
+on:
+  repository_dispatch:
+    types: [reconcile]
+
+jobs:
+  reconcile:
+    name: Run Python reconciler
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          pip install pdfplumber openpyxl supabase
+
+      - name: Run reconciliation
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          JOB_ID:                    ${{ github.event.client_payload.job_id }}
+          VENDOR_KEY:                ${{ github.event.client_payload.vendor_key }}
+        run: python scripts/run_reconciliation.py
