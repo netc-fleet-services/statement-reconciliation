@@ -4,7 +4,7 @@ import type { ReconciliationData } from '@/lib/types';
 
 export async function GET(
   _req: NextRequest,
-  context: { params: Promise<{ jobId: string }> | { jobId: string } }
+  context: { params: Promise<{ jobId: string }> }
 ) {
   const { jobId } = await context.params;
   const supabase = getSupabaseAdmin();
@@ -34,11 +34,11 @@ export async function GET(
     // Fetch and inline the JSON result so the UI can display the comparison
     if (data.result_json_path) {
       try {
-        const jsonBytes = await supabase.storage
+        const { data: jsonBlob } = await supabase.storage
           .from('reconciliation-files')
           .download(data.result_json_path);
-        if (jsonBytes) {
-          const text = await jsonBytes.text();
+        if (jsonBlob) {
+          const text = await jsonBlob.text();
           result_data = JSON.parse(text) as ReconciliationData;
         }
       } catch {
