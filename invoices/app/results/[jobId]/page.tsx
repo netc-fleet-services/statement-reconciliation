@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import type { ReconciliationData, ReconciliationJob, MatchedRecord, UnmatchedRecord } from '@/lib/types';
+import type { ReconciliationData, ReconciliationJob, MatchedRecord, FuzzyMatchedRecord, UnmatchedRecord } from '@/lib/types';
 import { VENDORS } from '@/lib/vendors';
 
 const POLL_MS = 4000;
@@ -133,12 +133,13 @@ function StatusTimeline({ status }: { status: ReconciliationJob['status'] }) {
 
 function ResultsView({ job }: { job: ReconciliationJob }) {
   const data = job.result_data;
-  const [tab, setTab] = useState<'discrepancies' | 'matched' | 'unmatched'>('discrepancies');
+  const [tab, setTab] = useState<'discrepancies' | 'fuzzy' | 'matched' | 'unmatched'>('discrepancies');
 
-  const matched  = job.matched_count  ?? 0;
-  const mismatch = job.mismatch_count ?? 0;
-  const stmtOnly = job.stmt_only_count ?? 0;
-  const qbOnly   = job.qb_only_count   ?? 0;
+  const matched  = job.matched_count      ?? 0;
+  const mismatch = job.mismatch_count     ?? 0;
+  const fuzzy    = job.fuzzy_match_count  ?? data?.fuzzy_matches?.length ?? 0;
+  const stmtOnly = job.stmt_only_count    ?? 0;
+  const qbOnly   = job.qb_only_count      ?? 0;
   const total    = matched + mismatch + stmtOnly;
   const matchPct = total > 0 ? Math.round((matched / total) * 100) : 0;
 
@@ -185,11 +186,12 @@ function ResultsView({ job }: { job: ReconciliationJob }) {
       </div>
 
       {/* Record count metrics */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Metric label="Match Rate"    value={`${matchPct}%`}          ok={matchPct === 100} />
-        <Metric label="Clean Matches" value={String(matched)} />
-        <Metric label="Discrepancies" value={String(mismatch)}         warn={mismatch > 0} />
-        <Metric label="Unmatched"     value={String(stmtOnly + qbOnly)} warn={stmtOnly + qbOnly > 0} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <Metric label="Match Rate"     value={`${matchPct}%`}           ok={matchPct === 100} />
+        <Metric label="Clean Matches"  value={String(matched)} />
+        <Metric label="Discrepancies"  value={String(mismatch)}          warn={mismatch > 0} />
+        <Metric label="Likely Matches" value={String(fuzzy)}             fuzzy={fuzzy > 0} />
+        <Metric label="Unmatched"      value={String(stmtOnly + qbOnly)} warn={stmtOnly + qbOnly > 0} />
       </div>
 
       {/* Excel download */}
@@ -209,6 +211,7 @@ function ResultsView({ job }: { job: ReconciliationJob }) {
           <div className="flex border-b border-gray-200">
             {([
               ['discrepancies', `Discrepancies (${data.discrepancies.length})`],
+              ['fuzzy',         `Likely Matches (${data.fuzzy_matches?.length ?? 0})`],
               ['matched',       `Matched (${data.matched.length})`],
               ['unmatched',     `Unmatched (${data.stmt_only.length + data.qb_only.length})`],
             ] as const).map(([key, label]) => (
@@ -228,6 +231,7 @@ function ResultsView({ job }: { job: ReconciliationJob }) {
 
           <div className="mt-4">
             {tab === 'discrepancies' && <DiscrepanciesTable rows={data.discrepancies} />}
+            {tab === 'fuzzy'         && <FuzzyMatchesTable rows={data.fuzzy_matches ?? []} />}
             {tab === 'matched'       && <MatchedTable rows={data.matched} />}
             {tab === 'unmatched'     && <UnmatchedTable stmtOnly={data.stmt_only} qbOnly={data.qb_only} />}
           </div>
@@ -305,6 +309,41 @@ function MatchedTable({ rows }: { rows: MatchedRecord[] }) {
   );
 }
 
+function FuzzyMatchesTable({ rows }: { rows: FuzzyMatchedRecord[] }) {
+  if (!rows.length) return <EmptyState message="No likely matches found — no near-identical invoice numbers with matching amounts." success />;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg bg-purple-50 px-4 py-3 text-sm text-purple-800 ring-1 ring-purple-200">
+        <strong>Needs review:</strong> These records didn&apos;t match on invoice number but share the same amount and differ by a single character — likely a typo in one system. Confirm and correct in QuickBooks or the vendor statement.
+      </div>
+      <ScrollTable>
+        <thead>
+          <Th>Stmt Invoice No</Th>
+          <Th>QB Invoice No</Th>
+          <Th>Stmt Date</Th>
+          <Th>QB Date</Th>
+          <Th right>Date Drift</Th>
+          <Th right>Amount</Th>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={i} className="border-t border-gray-100 bg-purple-50">
+              <Td mono>{r.invoice_no_stmt}</Td>
+              <Td mono>{r.invoice_no_qb}</Td>
+              <Td>{r.stmt_date ?? '—'}</Td>
+              <Td>{r.qb_date ?? '—'}</Td>
+              <Td right className={r.date_drift_days > 0 ? 'text-amber-700 font-medium' : ''}>
+                {r.date_drift_days > 0 ? `${r.date_drift_days}d` : '—'}
+              </Td>
+              <Td right>{fmtCurrency(r.stmt_amount)}</Td>
+            </tr>
+          ))}
+        </tbody>
+      </ScrollTable>
+    </div>
+  );
+}
+
 function UnmatchedTable({ stmtOnly, qbOnly }: { stmtOnly: UnmatchedRecord[]; qbOnly: UnmatchedRecord[] }) {
   const all = [...stmtOnly, ...qbOnly];
   if (!all.length) return <EmptyState message="All records matched on both sides." success />;
@@ -368,11 +407,11 @@ function Td({ children, right, mono, className = '' }: {
   );
 }
 
-function Metric({ label, value, ok, warn }: { label: string; value: string; ok?: boolean; warn?: boolean }) {
+function Metric({ label, value, ok, warn, fuzzy }: { label: string; value: string; ok?: boolean; warn?: boolean; fuzzy?: boolean }) {
   return (
     <div className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-200">
       <p className="text-xs text-gray-400">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${ok ? 'text-green-600' : warn ? 'text-amber-600' : 'text-gray-900'}`}>
+      <p className={`mt-1 text-xl font-bold ${ok ? 'text-green-600' : warn ? 'text-amber-600' : fuzzy ? 'text-purple-600' : 'text-gray-900'}`}>
         {value}
       </p>
     </div>
