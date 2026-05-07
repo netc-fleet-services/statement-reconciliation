@@ -30,4 +30,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           JOB_ID:                    ${{ github.event.client_payload.job_id }}
           VENDOR_KEY:                ${{ github.event.client_payload.vendor_key }}
+          QB_FILE_COUNT:             ${{ github.event.client_payload.qb_file_count }}
         run: python scripts/run_reconciliation.py

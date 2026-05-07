@@ -84,6 +84,24 @@ def load_qb(xlsx_path: str, sheet: Optional[str] = None) -> ParsedStatement:
     )
 
 
+def merge_qb_statements(stmts: list[ParsedStatement]) -> ParsedStatement:
+    """Combine multiple QB exports into one ParsedStatement for reconciliation."""
+    if len(stmts) == 1:
+        return stmts[0]
+    all_records = [r for s in stmts for r in s.records]
+    accounts = ", ".join(filter(None, (s.account_no for s in stmts)))
+    sources  = ", ".join(filter(None, (s.source_file for s in stmts)))
+    return ParsedStatement(
+        vendor="QuickBooks",
+        statement_date=None,
+        account_no=accounts or None,
+        period_total=round(sum(r.amount for r in all_records), 2),
+        statement_mode="all_activity",
+        records=all_records,
+        source_file=sources or None,
+    )
+
+
 if __name__ == "__main__":
     import sys
     qb = load_qb(sys.argv[1])
