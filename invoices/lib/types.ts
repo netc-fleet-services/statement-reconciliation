@@ -10,6 +10,7 @@ export interface ReconciliationJob {
   result_json_path: string | null;
   matched_count: number | null;
   mismatch_count: number | null;
+  fuzzy_match_count: number | null;
   stmt_only_count: number | null;
   qb_only_count: number | null;
   stmt_total: number | null;
@@ -35,6 +36,18 @@ export interface MatchedRecord {
   reason: string | null; // null | "amount" | "date" | "amount+date"
 }
 
+export interface FuzzyMatchedRecord {
+  invoice_no_stmt: string;  // as it appears on the vendor statement
+  invoice_no_qb: string;    // as it appears in QuickBooks
+  stmt_date: string | null;
+  qb_date: string | null;
+  stmt_amount: number;
+  qb_amount: number;
+  delta: number;
+  date_drift_days: number;
+  edit_distance: number;    // always 1 for now
+}
+
 export interface UnmatchedRecord {
   invoice_no: string;
   date: string | null;
@@ -53,6 +66,7 @@ export interface ReconciliationData {
   qb_record_count: number;
   matched: MatchedRecord[];
   discrepancies: MatchedRecord[];
+  fuzzy_matches: FuzzyMatchedRecord[];
   stmt_only: UnmatchedRecord[];
   qb_only: UnmatchedRecord[];
 }

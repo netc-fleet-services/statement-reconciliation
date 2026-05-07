@@ -30,8 +30,10 @@ class Sullivan(StatementParser):
             dt, po, inv, comment, amt_s, _stub_amt = m.groups()
             amt = parse_amount(amt_s) or 0.0
             t = "Credit" if "CREDIT" in comment else ("Payment" if "PAYMENT" in comment else "Bill")
+            # Normalize "0000-2973846" → "2973846" to match QB format
+            clean_inv = inv.replace("-", "").lstrip("0") or inv
             records.append(StatementRecord(
-                invoice_no=inv, txn_date=parse_date(dt),
+                invoice_no=clean_inv, txn_date=parse_date(dt),
                 amount=amt, type=t, po_ref=po.strip(), raw=line.strip(),
             ))
         # Sullivan also has standalone payment/discount lines without invoice numbers — skip those for now

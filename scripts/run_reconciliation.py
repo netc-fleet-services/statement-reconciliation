@@ -82,6 +82,7 @@ def main() -> None:
             print(
                 f"[{JOB_ID}] matched={len(result.matched)} "
                 f"discrepancies={len(result.discrepancies)} "
+                f"fuzzy={len(result.fuzzy_matches)} "
                 f"stmt_only={len(result.stmt_only)} "
                 f"qb_only={len(result.qb_only)}"
             )
@@ -107,6 +108,7 @@ def main() -> None:
                 result_json_path=json_path,
                 matched_count=len(result.matched),
                 mismatch_count=len(result.discrepancies),
+                fuzzy_match_count=len(result.fuzzy_matches),
                 stmt_only_count=len(result.stmt_only),
                 qb_only_count=len(result.qb_only),
                 stmt_total=result.stmt_total,

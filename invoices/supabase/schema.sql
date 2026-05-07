@@ -47,6 +47,9 @@ alter table reconciliation_jobs add column if not exists result_json_path text;
 alter table reconciliation_jobs add column if not exists qb_file_count   integer not null default 1;
 alter table reconciliation_jobs add column if not exists stmt_file_count integer not null default 1;
 
+-- ── Add fuzzy match count ─────────────────────────────────────────────────────
+alter table reconciliation_jobs add column if not exists fuzzy_match_count integer;
+
 -- ── Storage ───────────────────────────────────────────────────────────────────
 -- In the Supabase dashboard → Storage, create a bucket named:
 --   reconciliation-files
