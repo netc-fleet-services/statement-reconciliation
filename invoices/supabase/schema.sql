@@ -40,8 +40,11 @@ create trigger reconciliation_jobs_updated_at
 alter table reconciliation_jobs enable row level security;
 
 -- ── If you already created the table without result_json_path ─────────────────
--- Run this separately:
--- alter table reconciliation_jobs add column if not exists result_json_path text;
+-- Run this separately
+alter table reconciliation_jobs add column if not exists result_json_path text;
+
+-- ── Add qb_file_count for multi-QB-file support ───────────────────────────────
+alter table reconciliation_jobs add column if not exists qb_file_count integer not null default 1;
 
 -- ── Storage ───────────────────────────────────────────────────────────────────
 -- In the Supabase dashboard → Storage, create a bucket named:
