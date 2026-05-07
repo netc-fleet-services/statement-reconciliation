@@ -4,6 +4,26 @@ from .base import StatementParser, ParsedStatement, StatementRecord
 REGISTRY = {}
 
 
+def merge_parsed_statements(stmts: list[ParsedStatement]) -> ParsedStatement:
+    """Combine multiple vendor statement PDFs into one ParsedStatement."""
+    if len(stmts) == 1:
+        return stmts[0]
+    all_records = [r for s in stmts for r in s.records]
+    totals = [s.period_total for s in stmts if s.period_total is not None]
+    period_total = round(sum(totals), 2) if totals else None
+    accounts = ", ".join(filter(None, (s.account_no for s in stmts)))
+    return ParsedStatement(
+        vendor=stmts[0].vendor,
+        statement_date=None,
+        account_no=accounts or None,
+        period_total=period_total,
+        statement_mode=stmts[0].statement_mode,
+        records=all_records,
+        notes=[n for s in stmts for n in s.notes],
+        source_file=", ".join(filter(None, (s.source_file for s in stmts))),
+    )
+
+
 def register(key: str):
     def deco(cls):
         REGISTRY[key] = cls

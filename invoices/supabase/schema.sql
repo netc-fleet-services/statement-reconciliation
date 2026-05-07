@@ -43,8 +43,9 @@ alter table reconciliation_jobs enable row level security;
 -- Run this separately
 alter table reconciliation_jobs add column if not exists result_json_path text;
 
--- ── Add qb_file_count for multi-QB-file support ───────────────────────────────
-alter table reconciliation_jobs add column if not exists qb_file_count integer not null default 1;
+-- ── Add file counts for multi-file support ────────────────────────────────────
+alter table reconciliation_jobs add column if not exists qb_file_count   integer not null default 1;
+alter table reconciliation_jobs add column if not exists stmt_file_count integer not null default 1;
 
 -- ── Storage ───────────────────────────────────────────────────────────────────
 -- In the Supabase dashboard → Storage, create a bucket named:

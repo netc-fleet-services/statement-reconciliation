@@ -1,5 +1,5 @@
 /** Trigger the reconcile GitHub Actions workflow via repository_dispatch. */
-export async function triggerReconcileWorkflow(jobId: string, vendorKey: string, qbFileCount: number): Promise<void> {
+export async function triggerReconcileWorkflow(jobId: string, vendorKey: string, qbFileCount: number, stmtFileCount: number): Promise<void> {
   const owner = process.env.GITHUB_OWNER;
   const repo  = process.env.GITHUB_REPO;
   const token = process.env.GITHUB_PAT;
@@ -20,7 +20,7 @@ export async function triggerReconcileWorkflow(jobId: string, vendorKey: string,
       },
       body: JSON.stringify({
         event_type: 'reconcile',
-        client_payload: { job_id: jobId, vendor_key: vendorKey, qb_file_count: qbFileCount },
+        client_payload: { job_id: jobId, vendor_key: vendorKey, qb_file_count: qbFileCount, stmt_file_count: stmtFileCount },
       }),
     }
   );

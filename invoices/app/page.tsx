@@ -8,15 +8,15 @@ export default function UploadPage() {
   const router = useRouter();
   const vendorKeys = Object.keys(VENDORS);
 
-  const [vendorKey, setVendorKey] = useState(vendorKeys[0]);
-  const [qbFiles, setQbFiles]     = useState<File[]>([]);
-  const [stmtFile, setStmtFile]   = useState<File | null>(null);
-  const [loading, setLoading]     = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [vendorKey, setVendorKey]   = useState(vendorKeys[0]);
+  const [qbFiles, setQbFiles]       = useState<File[]>([]);
+  const [stmtFiles, setStmtFiles]   = useState<File[]>([]);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!qbFiles.length || !stmtFile) return;
+    if (!qbFiles.length || !stmtFiles.length) return;
 
     setLoading(true);
     setError(null);
@@ -24,7 +24,7 @@ export default function UploadPage() {
     const body = new FormData();
     body.append('vendor_key', vendorKey);
     qbFiles.forEach(f => body.append('qb_files', f));
-    body.append('stmt_file', stmtFile);
+    stmtFiles.forEach(f => body.append('stmt_files', f));
 
     try {
       const res = await fetch('/api/reconcile', { method: 'POST', body });
@@ -37,7 +37,7 @@ export default function UploadPage() {
     }
   }
 
-  const canSubmit = qbFiles.length > 0 && !!stmtFile && !loading;
+  const canSubmit = qbFiles.length > 0 && stmtFiles.length > 0 && !loading;
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">
@@ -70,19 +70,20 @@ export default function UploadPage() {
           <MultiFileInput
             id="qb_files"
             label="QuickBooks Export(s)"
+            accept=".xlsx"
             hint="One or more transaction exports from QuickBooks Desktop (.xlsx)"
             files={qbFiles}
             onChange={files => setQbFiles(files ? Array.from(files) : [])}
           />
 
-          {/* Statement PDF */}
-          <FileInput
-            id="stmt_file"
-            label="Vendor Statement"
+          {/* Vendor statement PDFs — multi-select */}
+          <MultiFileInput
+            id="stmt_files"
+            label="Vendor Statement(s)"
             accept=".pdf"
-            hint="Statement PDF from the vendor"
-            file={stmtFile}
-            onChange={files => setStmtFile(files?.[0] ?? null)}
+            hint="One or more statement PDFs from the vendor"
+            files={stmtFiles}
+            onChange={files => setStmtFiles(files ? Array.from(files) : [])}
           />
 
           {error && (
@@ -109,10 +110,11 @@ export default function UploadPage() {
 }
 
 function MultiFileInput({
-  id, label, hint, files, onChange,
+  id, label, accept, hint, files, onChange,
 }: {
   id: string;
   label: string;
+  accept: string;
   hint: string;
   files: File[];
   onChange: (files: FileList | null) => void;
@@ -142,7 +144,7 @@ function MultiFileInput({
         <input
           id={id}
           type="file"
-          accept=".xlsx"
+          accept={accept}
           multiple
           className="sr-only"
           onChange={e => onChange(e.target.files)}
@@ -160,50 +162,6 @@ function MultiFileInput({
           ))}
         </ul>
       )}
-    </div>
-  );
-}
-
-function FileInput({
-  id, label, accept, hint, file, onChange,
-}: {
-  id: string;
-  label: string;
-  accept: string;
-  hint: string;
-  file: File | null;
-  onChange: (files: FileList | null) => void;
-}) {
-  return (
-    <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700">
-        {label}
-      </label>
-      <label
-        htmlFor={id}
-        className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 px-4 py-5 text-center transition-colors hover:border-blue-400 hover:bg-blue-50"
-      >
-        {file ? (
-          <>
-            <span className="text-sm font-medium text-blue-700">{file.name}</span>
-            <span className="mt-0.5 text-xs text-gray-400">
-              {(file.size / 1024).toFixed(0)} KB · click to change
-            </span>
-          </>
-        ) : (
-          <>
-            <span className="text-sm text-gray-500">Click to select a file</span>
-            <span className="mt-0.5 text-xs text-gray-400">{hint}</span>
-          </>
-        )}
-        <input
-          id={id}
-          type="file"
-          accept={accept}
-          className="sr-only"
-          onChange={e => onChange(e.target.files)}
-        />
-      </label>
     </div>
   );
 }
