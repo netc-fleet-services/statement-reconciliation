@@ -22,21 +22,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });
   }
 
-  const vendorKey = formData.get('vendor_key') as string | null;
-  const qbFiles   = formData.getAll('qb_files') as File[];
-  const stmtFile  = formData.get('stmt_file') as File | null;
+  const vendorKey  = formData.get('vendor_key') as string | null;
+  const qbFiles    = formData.getAll('qb_files')   as File[];
+  const stmtFiles  = formData.getAll('stmt_files') as File[];
 
   if (!vendorKey || !VENDORS[vendorKey]) {
     return NextResponse.json({ error: 'Invalid vendor key' }, { status: 400 });
   }
-  if (!qbFiles.length || !stmtFile) {
-    return NextResponse.json({ error: 'At least one QuickBooks file and a vendor statement are required' }, { status: 400 });
+  if (!qbFiles.length || !stmtFiles.length) {
+    return NextResponse.json({ error: 'At least one QuickBooks file and one vendor statement are required' }, { status: 400 });
   }
 
   // Create the job record
   const { data: job, error: jobError } = await supabase
     .from('reconciliation_jobs')
-    .insert({ vendor_key: vendorKey, status: 'pending', qb_file_count: qbFiles.length })
+    .insert({ vendor_key: vendorKey, status: 'pending', qb_file_count: qbFiles.length, stmt_file_count: stmtFiles.length })
     .select('id')
     .single();
 
@@ -48,19 +48,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const jobId = job.id as string;
+  const jobId  = job.id as string;
   const bucket = 'reconciliation-files';
-  const xlsx = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  const xlsx   = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
-  // Upload all QB files and the statement in parallel
-  const qbBuffers  = await Promise.all(qbFiles.map(f => f.arrayBuffer().then(Buffer.from)));
-  const stmtBuffer = await stmtFile.arrayBuffer().then(Buffer.from);
+  // Upload all QB files and all statement files in parallel
+  const qbBuffers   = await Promise.all(qbFiles.map(f => f.arrayBuffer().then(Buffer.from)));
+  const stmtBuffers = await Promise.all(stmtFiles.map(f => f.arrayBuffer().then(Buffer.from)));
 
   const uploads = await Promise.all([
     ...qbBuffers.map((buf, i) =>
       supabase.storage.from(bucket).upload(`${jobId}/qb_${i}.xlsx`, buf, { contentType: xlsx })
     ),
-    supabase.storage.from(bucket).upload(`${jobId}/statement.pdf`, stmtBuffer, { contentType: 'application/pdf' }),
+    ...stmtBuffers.map((buf, i) =>
+      supabase.storage.from(bucket).upload(`${jobId}/statement_${i}.pdf`, buf, { contentType: 'application/pdf' })
+    ),
   ]);
 
   const uploadErr = uploads.find(r => r.error)?.error;
@@ -73,13 +75,13 @@ export async function POST(req: NextRequest) {
   // Mark files uploaded
   await supabase.from('reconciliation_jobs').update({
     qb_file_path:   `${jobId}/qb_0.xlsx`,
-    stmt_file_path: `${jobId}/statement.pdf`,
+    stmt_file_path: `${jobId}/statement_0.pdf`,
     status: 'pending',
   }).eq('id', jobId);
 
-  // Trigger GitHub Actions — if this fails, the job stays pending and can be retried
+  // Trigger GitHub Actions
   try {
-    await triggerReconcileWorkflow(jobId, vendorKey, qbFiles.length);
+    await triggerReconcileWorkflow(jobId, vendorKey, qbFiles.length, stmtFiles.length);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error('[reconcile] GitHub dispatch error:', detail);

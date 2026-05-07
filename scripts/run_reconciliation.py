@@ -20,16 +20,17 @@ sys.path.insert(0, REPO_ROOT)
 
 from supabase import create_client, Client  # noqa: E402
 
-from reconciler.parsers import get_parser                      # noqa: E402
-from reconciler.qb_loader import load_qb, merge_qb_statements  # noqa: E402
-from reconciler.reconcile import export_to_excel, reconcile    # noqa: E402
+from reconciler.parsers import get_parser, merge_parsed_statements  # noqa: E402
+from reconciler.qb_loader import load_qb, merge_qb_statements       # noqa: E402
+from reconciler.reconcile import export_to_excel, reconcile         # noqa: E402
 
-SUPABASE_URL   = os.environ["SUPABASE_URL"]
-SUPABASE_KEY   = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-JOB_ID         = os.environ["JOB_ID"]
-VENDOR_KEY     = os.environ["VENDOR_KEY"]
-QB_FILE_COUNT  = int(os.environ.get("QB_FILE_COUNT", "1"))
-BUCKET         = "reconciliation-files"
+SUPABASE_URL    = os.environ["SUPABASE_URL"]
+SUPABASE_KEY    = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+JOB_ID          = os.environ["JOB_ID"]
+VENDOR_KEY      = os.environ["VENDOR_KEY"]
+QB_FILE_COUNT   = int(os.environ.get("QB_FILE_COUNT", "1"))
+STMT_FILE_COUNT = int(os.environ.get("STMT_FILE_COUNT", "1"))
+BUCKET          = "reconciliation-files"
 
 sb: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -55,18 +56,25 @@ def main() -> None:
         with tempfile.TemporaryDirectory() as tmp:
             stmt_path = os.path.join(tmp, "statement.pdf")
 
-            print(f"[{JOB_ID}] Downloading files… (QB files: {QB_FILE_COUNT})")
+            print(f"[{JOB_ID}] Downloading files… (QB: {QB_FILE_COUNT}, stmt: {STMT_FILE_COUNT})")
             qb_paths: list[str] = []
             for i in range(QB_FILE_COUNT):
-                qb_path = os.path.join(tmp, f"qb_{i}.xlsx")
-                download_file(f"{JOB_ID}/qb_{i}.xlsx", qb_path)
-                qb_paths.append(qb_path)
-            download_file(f"{JOB_ID}/statement.pdf", stmt_path)
+                p = os.path.join(tmp, f"qb_{i}.xlsx")
+                download_file(f"{JOB_ID}/qb_{i}.xlsx", p)
+                qb_paths.append(p)
+
+            stmt_paths: list[str] = []
+            for i in range(STMT_FILE_COUNT):
+                p = os.path.join(tmp, f"statement_{i}.pdf")
+                download_file(f"{JOB_ID}/statement_{i}.pdf", p)
+                stmt_paths.append(p)
 
             print(f"[{JOB_ID}] Parsing — vendor: {VENDOR_KEY}")
+            parser    = get_parser(VENDOR_KEY)
             qb_stmts  = [load_qb(p) for p in qb_paths]
             qb_stmt   = merge_qb_statements(qb_stmts)
-            vend_stmt = get_parser(VENDOR_KEY).parse(stmt_path)
+            vend_stmts = [parser.parse(p) for p in stmt_paths]
+            vend_stmt  = merge_parsed_statements(vend_stmts)
 
             print(f"[{JOB_ID}] Running reconciliation…")
             result = reconcile(vend_stmt, qb_stmt)
