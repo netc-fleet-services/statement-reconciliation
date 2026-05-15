@@ -58,6 +58,9 @@ def _ensure_loaded():
         "nationaltire", "unitedpacific", "whelen", "keystone", "myers",
         "rctoolbox", "arcsource", "brookline", "dennison", "sullivan",
         "advantage", "cdk_global", "nekw", "stmt_unknown", "zips",
+        "americantextile", "berubes", "burkeoil", "cohensteel", "cummins",
+        "fastenerwarehouse", "hewsco", "mcfarlandford", "rochestertruck",
+        "terminalsupply",
     ]:
         try:
             importlib.import_module(f"reconciler.parsers.{mod}")

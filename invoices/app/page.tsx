@@ -80,11 +80,14 @@ export default function UploadPage() {
           <MultiFileInput
             id="stmt_files"
             label="Vendor Statement(s)"
-            accept=".pdf"
-            hint="One or more statement PDFs from the vendor"
+            accept=".pdf,.xlsx"
+            hint="PDF for most vendors · XLSX for Cummins"
             files={stmtFiles}
             onChange={files => setStmtFiles(files ? Array.from(files) : [])}
           />
+          <p className="text-xs text-gray-400">
+            Most vendors send statements as <strong>PDF</strong>. Cummins (ONEBMS) sends <strong>XLSX</strong> — if you only have a printed copy, export to PDF first and the parser will do its best.
+          </p>
 
           {error && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">

@@ -5,6 +5,16 @@ import { VENDORS } from '@/lib/vendors';
 
 export const maxDuration = 30;
 
+function stmtExt(file: File): 'pdf' | 'xlsx' {
+  return file.name.toLowerCase().endsWith('.xlsx') ? 'xlsx' : 'pdf';
+}
+
+function stmtContentType(file: File): string {
+  return stmtExt(file) === 'xlsx'
+    ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    : 'application/pdf';
+}
+
 export async function POST(req: NextRequest) {
   let supabase: ReturnType<typeof getSupabaseAdmin>;
   try {
@@ -32,6 +42,8 @@ export async function POST(req: NextRequest) {
   if (!qbFiles.length || !stmtFiles.length) {
     return NextResponse.json({ error: 'At least one QuickBooks file and one vendor statement are required' }, { status: 400 });
   }
+
+  const stmtExts = stmtFiles.map(stmtExt);
 
   // Create the job record
   const { data: job, error: jobError } = await supabase
@@ -61,7 +73,11 @@ export async function POST(req: NextRequest) {
       supabase.storage.from(bucket).upload(`${jobId}/qb_${i}.xlsx`, buf, { contentType: xlsx })
     ),
     ...stmtBuffers.map((buf, i) =>
-      supabase.storage.from(bucket).upload(`${jobId}/statement_${i}.pdf`, buf, { contentType: 'application/pdf' })
+      supabase.storage.from(bucket).upload(
+        `${jobId}/statement_${i}.${stmtExts[i]}`,
+        buf,
+        { contentType: stmtContentType(stmtFiles[i]) },
+      )
     ),
   ]);
 
@@ -75,13 +91,13 @@ export async function POST(req: NextRequest) {
   // Mark files uploaded
   await supabase.from('reconciliation_jobs').update({
     qb_file_path:   `${jobId}/qb_0.xlsx`,
-    stmt_file_path: `${jobId}/statement_0.pdf`,
+    stmt_file_path: `${jobId}/statement_0.${stmtExts[0]}`,
     status: 'pending',
   }).eq('id', jobId);
 
   // Trigger GitHub Actions
   try {
-    await triggerReconcileWorkflow(jobId, vendorKey, qbFiles.length, stmtFiles.length);
+    await triggerReconcileWorkflow(jobId, vendorKey, qbFiles.length, stmtFiles.length, stmtExts);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error('[reconcile] GitHub dispatch error:', detail);
